@@ -29,10 +29,6 @@ INT32 Usage()
     return -1;
 }
 
-
-
-bool instrument = true; //Will be enabled by PinPoints
-
 FILE * out;
 CACHE_STATS CountAccess[TOTAL_THREADS][3];
 CACHE_STATS CountAllAccess[TOTAL_THREADS];
@@ -43,14 +39,12 @@ PIN_LOCK lock;
 /* ===================================================================== */
 VOID LoadMulti(ADDRINT addr, UINT32 size, ADDRINT instAddr,THREADID threadid)
 {
-    if(!instrument) return;
-
     PIN_GetLock(&lock, threadid+1);
 
-        CountAccess[threadid][ACCESS_TYPE_LOAD]++;
-        for (UINT32 i=0; i<TOTAL_CACHES_HIERARCHIES ; i++ ){
-            Hierarchies[i][0].dl1[threadid].Access(addr, size, ACCESS_TYPE_LOAD, instAddr);
-        }
+    CountAccess[threadid][ACCESS_TYPE_LOAD]++;
+    for (UINT32 i=0; i<TOTAL_CACHES_HIERARCHIES ; i++ ){
+        Hierarchies[i][0].dl1[threadid].Access(addr, size, ACCESS_TYPE_LOAD, instAddr);
+    }
     PIN_ReleaseLock(&lock);
 }
 
@@ -58,14 +52,12 @@ VOID LoadMulti(ADDRINT addr, UINT32 size, ADDRINT instAddr,THREADID threadid)
 /* ===================================================================== */
 VOID StoreMulti(ADDRINT addr, UINT32 size, ADDRINT instAddr,THREADID threadid)
 {
-    if(!instrument) return;
-
     PIN_GetLock(&lock, threadid+1);
 
-        CountAccess[threadid][ACCESS_TYPE_STORE]++;
-        for (UINT32 i=0; i<TOTAL_CACHES_HIERARCHIES ; i++ ){
-            Hierarchies[i][0].dl1[threadid].Access(addr, size, ACCESS_TYPE_STORE, instAddr);
-        }
+    CountAccess[threadid][ACCESS_TYPE_STORE]++;
+    for (UINT32 i=0; i<TOTAL_CACHES_HIERARCHIES ; i++ ){
+        Hierarchies[i][0].dl1[threadid].Access(addr, size, ACCESS_TYPE_STORE, instAddr);
+    }
     PIN_ReleaseLock(&lock);
 }
 
@@ -73,14 +65,12 @@ VOID StoreMulti(ADDRINT addr, UINT32 size, ADDRINT instAddr,THREADID threadid)
 /* ===================================================================== */
 VOID LoadInstructionMulti(ADDRINT addr, UINT32 size, ADDRINT instAddr,THREADID threadid)
 {
-    if(!instrument) return;
-
     PIN_GetLock(&lock, threadid+1);
 
-        CountAccess[threadid][ACCESS_TYPE_INSTRUCTION]++;
-        for (UINT32 i=0; i<TOTAL_CACHES_HIERARCHIES ; i++ ){
-            Hierarchies[i][0].il1[threadid].Access(addr, size, ACCESS_TYPE_INSTRUCTION, instAddr);
-        }
+    CountAccess[threadid][ACCESS_TYPE_INSTRUCTION]++;
+    for (UINT32 i=0; i<TOTAL_CACHES_HIERARCHIES ; i++ ){
+        Hierarchies[i][0].il1[threadid].Access(addr, size, ACCESS_TYPE_INSTRUCTION, instAddr);
+    }
     PIN_ReleaseLock(&lock);
 }
 
@@ -130,12 +120,6 @@ VOID Fini(int code, VOID * v)
     CACHE_STATS TID=0; // Thread Id Iterator
     CACHE_STATS HIE=0; // Hierarchy Iterator
     CACHE_STATS LVL=0; // Cache Level Iterator
-    //CACHE_STATS LIN=0; // Line Size Iterator
-    //CACHE_STATS BLK=0; // Blocks Iterator
-    CACHE_STATS SLN=0; // Sparse Line Iterator
-    CACHE_STATS CLN=0; // Contiguous Line Iterator (Part of the line)
-    //CACHE_STATS FL2=0; // FloorLog2
-    //CACHE_STATS BNK=0; // Bank Iterator
 
     ////////////////////////////////////////////////////////////////////
     CACHE_STATS Max_Threads = TOTAL_THREADS;
@@ -217,11 +201,10 @@ VOID Fini(int code, VOID * v)
                 fprintf(out,"EVICTED_LINES;FLUSHED_LINES;UNUSED_LINES;TOTAL_COLD_START_MISSES;");
                 fprintf(out,"\n");
                 for (TID=0; TID<Max_Threads; TID++){
-                    Hierarchies[HIE][LVL].dl1[TID].FlushCache();
                     fprintf(out,"%llu;%llu;%llu;%llu;",TID,Hierarchies[HIE][LVL].dl1[TID].Accesses(), Hierarchies[HIE][LVL].dl1[TID].Hits(),Hierarchies[HIE][LVL].dl1[TID].Misses());
                     fprintf(out,"%llu;%llu;%llu;",Hierarchies[HIE][LVL].dl1[TID].Accesses(ACCESS_TYPE_LOAD), Hierarchies[HIE][LVL].dl1[TID].Hits(ACCESS_TYPE_LOAD),Hierarchies[HIE][LVL].dl1[TID].Misses(ACCESS_TYPE_LOAD));
                     fprintf(out,"%llu;%llu;%llu;",Hierarchies[HIE][LVL].dl1[TID].Accesses(ACCESS_TYPE_STORE),Hierarchies[HIE][LVL].dl1[TID].Hits(ACCESS_TYPE_STORE),Hierarchies[HIE][LVL].dl1[TID].Misses(ACCESS_TYPE_STORE));
-                    fprintf(out,"%llu;%llu;%llu;%llu;%llu;",Hierarchies[HIE][LVL].dl1[TID].EvictedLines(),Hierarchies[HIE][LVL].dl1[TID].FlushedLines(),Hierarchies[HIE][LVL].dl1[TID].UnusedLines(), Hierarchies[HIE][LVL].dl1[TID].ColdStart(),Hierarchies[HIE][LVL].dl1[TID].BringWrongAverageTime());
+                    fprintf(out,"%llu;%llu;%llu;%llu;",Hierarchies[HIE][LVL].dl1[TID].EvictedLines(),Hierarchies[HIE][LVL].dl1[TID].FlushedLines(),Hierarchies[HIE][LVL].dl1[TID].UnusedLines(), Hierarchies[HIE][LVL].dl1[TID].ColdStart());
                     fprintf(out,"\n");
                 }
                 fprintf(out,"\n");
@@ -233,13 +216,12 @@ VOID Fini(int code, VOID * v)
                 //=====================================================================
                 fprintf(out,"#L%llu_INST_CACHE;TOTAL_ACCESS;TOTAL_HITS;TOTAL_MISSES;",LVL+1);
                 fprintf(out,"INSTRUCTION_ACCESSES;INSTRUCTION_HIT;INSTRUCTION_MISSES;");
-                fprintf(out,"EVICTED_LINES;FLUSHED_LINES;UNUSED_LINES;TOTAL_COLD_START_MISSES;AVERAGE_TIME_WRONG_PREDICTION;");
+                fprintf(out,"EVICTED_LINES;FLUSHED_LINES;UNUSED_LINES;TOTAL_COLD_START_MISSES;");
                 fprintf(out,"\n");
                 for (TID=0; TID<Max_Threads; TID++){
-                    Hierarchies[HIE][LVL].il1[TID].FlushCache();
                     fprintf(out,"%llu;%llu;%llu;%llu;",TID,Hierarchies[HIE][LVL].il1[TID].Accesses(), Hierarchies[HIE][LVL].il1[TID].Hits(),Hierarchies[HIE][LVL].il1[TID].Misses());
                     fprintf(out,"%llu;%llu;%llu;",Hierarchies[HIE][LVL].il1[TID].Accesses(ACCESS_TYPE_INSTRUCTION), Hierarchies[HIE][LVL].il1[TID].Hits(ACCESS_TYPE_INSTRUCTION),Hierarchies[HIE][LVL].il1[TID].Misses(ACCESS_TYPE_INSTRUCTION));
-                    fprintf(out,"%llu;%llu;%llu;%llu;%llu;",Hierarchies[HIE][LVL].il1[TID].EvictedLines(),Hierarchies[HIE][LVL].il1[TID].FlushedLines(),Hierarchies[HIE][LVL].il1[TID].UnusedLines(), Hierarchies[HIE][LVL].il1[TID].ColdStart(), Hierarchies[HIE][LVL].il1[TID].BringWrongAverageTime());
+                    fprintf(out,"%llu;%llu;%llu;%llu;",Hierarchies[HIE][LVL].il1[TID].EvictedLines(),Hierarchies[HIE][LVL].il1[TID].FlushedLines(),Hierarchies[HIE][LVL].il1[TID].UnusedLines(), Hierarchies[HIE][LVL].il1[TID].ColdStart());
                     fprintf(out,"\n");
                 }
                 fprintf(out,"\n");

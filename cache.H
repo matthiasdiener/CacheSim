@@ -138,16 +138,6 @@ static INT32 FloorLog2(UINT32 n)
     return p;
 }
 
-/* ===================================================================== */
-/*!
- *  @brief Computes floor(log2(n))
- *  Works by finding position of MSB set.
- *  @returns -1 if n == 0.
- */
-static INT32 CeilLog2(UINT32 n)
-{
-    return FloorLog2(n - 1) + 1;
-}
 
 /* ===================================================================== */
 /*!
@@ -179,27 +169,17 @@ class CACHE_TAG
     ADDRINT _tag;
     uint64_t _lastAccess;
     uint64_t _bringAccess;
-    UINT8 *_usageVector;
-    UINT8 *_validBitVector;
 
     void InitTag(UINT32 words){
         _tag = 0;
         _lastAccess = 0;
         _bringAccess = 0;
-        _usageVector = new UINT8[words];
-        _validBitVector =  new UINT8[words];
-        CleanUsageVector(words);
-        CleanValidBitVector(words);
     }
 
     void InitTagTable(UINT32 words){
         _tag = 0;
         _lastAccess = 0;
         _bringAccess = 0;
-        _usageVector = new UINT8[words];
-        CleanUsageVector(words);
-        //_validBitVector =  new UINT8[1];
-        //CleanValidBitVector(1);
     }
 
     // Tag Address------------------------------------------------------
@@ -210,155 +190,6 @@ class CACHE_TAG
     void SetLastAccess(uint64_t lastAccess){this->_lastAccess = lastAccess;}
     uint64_t GetLastAccess() { return(this->_lastAccess); }
 
-    //------------------------------------------------------------------
-    // Usage Vector ----------------------------------------------------
-    //------------------------------------------------------------------
-    void CleanUsageVector(UINT32 words){
-        #ifdef DEBUG_MODE
-            if (words > MAX_LINE_SIZE ){ fprintf(stderr,"CleanUsageVector()");  ASSERTX(false); }
-        #endif
-
-        for(UINT32 i=0; i<words; i++)
-            this->_usageVector[i] = 0;
-    }
-
-    //------------------------------------------------------------------
-    void SetUsageVector(UINT32 pos_ini, UINT32 pos_end){
-        UINT32 ini = pos_ini; //UINT32(UINT32(pos_ini/SUB_BLOCK))*SUB_BLOCK;
-        UINT32 end = pos_ini + pos_end;//(UINT32(UINT32((pos_ini+pos_end)/SUB_BLOCK))*SUB_BLOCK)+(SUB_BLOCK* (((pos_ini+pos_end)%SUB_BLOCK) != 0));
-        #ifdef DEBUG_MODE
-            if (end > MAX_LINE_SIZE || pos_ini+pos_end > MAX_LINE_SIZE){ fprintf(stderr,"SetUsageVector(), %u %u", pos_ini, pos_end);  ASSERTX(false); }
-        #endif
-
-        for(UINT32 i=ini; i<end; i++){
-            if (this->_usageVector[i] == 0){
-                this->_usageVector[i] = 1;
-            }
-        }
-    }
-
-    //------------------------------------------------------------------
-    UINT32 CountUsageVector(UINT32 words){
-        #ifdef DEBUG_MODE
-            if (words > MAX_LINE_SIZE ){ fprintf(stderr,"CountUsageVector()");  ASSERTX(false); }
-        #endif
-
-        UINT32 count=0;
-        for(UINT32 i=0; i<words; i++){
-            if (this->_usageVector[i] != 0){
-                count++;
-            }
-        }
-        return count;
-    }
-
-    //------------------------------------------------------------------
-    UINT32 CheckUsageVectorSubBlock(UINT32 subblock){
-        #ifdef DEBUG_MODE
-            if (subblock > MAX_LINE_SIZE/SUB_BLOCK ){ fprintf(stderr,"CheckUsageVectorSubBlock()");  ASSERTX(false); }
-        #endif
-
-        UINT32 i, count=0;
-        for(i=(subblock*SUB_BLOCK); i<(subblock+1)*SUB_BLOCK; i++){
-            count += (this->_usageVector[i] != 0);
-        }
-        return (count > 0);
-    }
-
-
-    //------------------------------------------------------------------
-    // Valid Bit Vector ------------------------------------------------
-    //------------------------------------------------------------------
-    void CleanValidBitVector(UINT32 words){
-        #ifdef DEBUG_MODE
-            if (words > MAX_LINE_SIZE ){ fprintf(stderr,"CleanValidBitVector()");  ASSERTX(false); }
-        #endif
-
-        for(UINT32 i=0; i<words; i++){
-            this->_validBitVector[i] = 0;
-        }
-    }
-
-    //------------------------------------------------------------------
-    void SetValidBitVectorNormal(UINT32 pos_ini, UINT32 pos_end){
-        UINT32 ini = UINT32(UINT32(pos_ini/SUB_BLOCK))*SUB_BLOCK;
-        UINT32 end = (UINT32(UINT32((pos_ini+pos_end)/SUB_BLOCK))*SUB_BLOCK)+(SUB_BLOCK* (((pos_ini+pos_end)%SUB_BLOCK) != 0));
-        #ifdef DEBUG_MODE
-            if (end > MAX_LINE_SIZE || pos_ini+pos_end > MAX_LINE_SIZE || ini > pos_ini || end < pos_ini+pos_end){ fprintf(stderr,"SetValidBitVector(), %u %u", pos_ini, pos_end);  ASSERTX(false); }
-        #endif
-
-        for(UINT32 i=ini; i<end; i++){
-            if (this->_validBitVector[i] == 0)
-                this->_validBitVector[i] = 1;
-        }
-    }
-
-    //------------------------------------------------------------------
-    void SetValidBitVectorLearn(UINT32 pos_ini, UINT32 pos_end){
-        UINT32 ini = UINT32(UINT32(pos_ini/SUB_BLOCK))*SUB_BLOCK;
-        UINT32 end = (UINT32(UINT32((pos_ini+pos_end)/SUB_BLOCK))*SUB_BLOCK)+(SUB_BLOCK* (((pos_ini+pos_end)%SUB_BLOCK) != 0));
-        #ifdef DEBUG_MODE
-            if (end > MAX_LINE_SIZE || pos_ini+pos_end > MAX_LINE_SIZE || ini > pos_ini || end < pos_ini+pos_end){ fprintf(stderr,"SetValidBitVector(), %u %u", pos_ini, pos_end);  ASSERTX(false); }
-        #endif
-
-        for(UINT32 i=ini; i<end; i++){
-            if (this->_validBitVector[i] == 0)
-                this->_validBitVector[i] = 2;
-        }
-    }
-
-    //------------------------------------------------------------------
-    void SetValidBitVectorWrongFirst(UINT32 pos_ini, UINT32 pos_end){
-        UINT32 ini = UINT32(UINT32(pos_ini/SUB_BLOCK))*SUB_BLOCK;
-        UINT32 end = (UINT32(UINT32((pos_ini+pos_end)/SUB_BLOCK))*SUB_BLOCK)+(SUB_BLOCK* (((pos_ini+pos_end)%SUB_BLOCK) != 0));
-        #ifdef DEBUG_MODE
-            if (end > MAX_LINE_SIZE || pos_ini+pos_end > MAX_LINE_SIZE || ini > pos_ini || end < pos_ini+pos_end){ fprintf(stderr,"SetValidBitVector(), %u %u", pos_ini, pos_end);  ASSERTX(false); }
-        #endif
-
-        for(UINT32 i=ini; i<end; i++){
-            if (this->_validBitVector[i] == 0)
-                this->_validBitVector[i] = 3;
-        }
-    }
-
-    //------------------------------------------------------------------
-    UINT32 CountValidBitVector(UINT32 words){
-        #ifdef DEBUG_MODE
-            if (words > MAX_LINE_SIZE ){ fprintf(stderr,"CountUsageVector()");  ASSERTX(false); }
-        #endif
-
-        UINT32 count=0;
-        for(UINT32 i=0; i<words; i++){
-            if (this->_validBitVector[i] != 0){
-                count++;
-            }
-        }
-
-        count /= SUB_BLOCK;
-        #ifdef DEBUG_MODE
-            if (count > SUB_BLOCK){ fprintf(stderr,"CountValidBitVector(), %u %u", count, words);  ASSERTX(false); }
-        #endif
-
-        return count;
-    }
-
-
-    //------------------------------------------------------------------
-    OPERATION CheckValidBitVector(UINT32 pos_ini, UINT32 pos_end){
-        UINT32 ini = pos_ini;//UINT32(UINT32(pos_ini/SUB_BLOCK))*SUB_BLOCK;
-        UINT32 end = pos_ini + pos_end;//(UINT32(UINT32((pos_ini+pos_end)/SUB_BLOCK))*SUB_BLOCK)+(SUB_BLOCK* (((pos_ini+pos_end)%SUB_BLOCK) != 0));
-        #ifdef DEBUG_MODE
-            if (end > MAX_LINE_SIZE || pos_ini+pos_end > MAX_LINE_SIZE){ fprintf(stderr,"CheckValidBitVector(), %u %u", pos_ini, pos_end);  ASSERTX(false); }
-        #endif
-
-        for(UINT32 i=ini; i<end; i++){
-            if (this->_validBitVector[i] == 0){
-                return OPERATION_MISS;
-            }
-        }
-
-        return OPERATION_HIT;
-    }
 
 };
 
@@ -499,13 +330,7 @@ class CACHE_BASE
     OPERATION Access(ADDRINT addr, UINT32 size, ACCESS_TYPE accessType, ADDRINT pc);
     OPERATION Find(UINT32 index, ADDRINT tag,  uint64_t clock, UINT32 offset, UINT32 size, ACCESS_TYPE accessType, ADDRINT pc);
     VOID Replace(UINT32 index, ADDRINT tag, uint64_t clock, UINT32 offset, UINT32 size, ACCESS_TYPE accessType, ADDRINT pc, ADDRINT addr);
-    VOID FlushCache(){
-        for (UINT32 index=0 ; index< this->_indexMask+1; index++){
-            for (UINT32 way=0; way < this->GetAssociativity()  ; way++){
-                this->SaveUsageVectorFlush( this->_sets[index]._ways[way] );
-            }
-        }
-    }
+
 
     // Statistics
     CACHE_STATS Hits(ACCESS_TYPE accessType) { return _access[accessType][OPERATION_HIT];}
@@ -525,26 +350,6 @@ class CACHE_BASE
     CACHE_STATS FlushedLines() { return _flushedLines; }
     CACHE_STATS UnusedLines() { return _unusedLines; }
     CACHE_STATS ColdStart() { return _coldStart; }
-    CACHE_STATS BringWrongAverageTime() {
-        if (this->_bringWrongNumber == 0)
-            return 0;
-        else
-            return this->_bringWrongTime / this->_bringWrongNumber;
-        }
-
-    CACHE_STATS UsedBlocks(CACHE_STATS subblocks, ACCESS_TYPE accesstype){
-        #ifdef DEBUG_MODE
-            if (subblocks > this->_lineSize/SUB_BLOCK || accesstype >= ACCESS_TYPE_NUM ){ fprintf(stderr,"UsedBlocks()");  ASSERTX(false); }
-        #endif
-        return this->_usedBlocks[subblocks][accesstype];
-        }
-
-    CACHE_STATS RequestedBlocks(CACHE_STATS subblocks){
-        #ifdef DEBUG_MODE
-            if (subblocks > this->_lineSize/SUB_BLOCK){ fprintf(stderr,"RequestedBlocks()");  ASSERTX(false); }
-        #endif
-        return this->_requestedBlocks[subblocks];
-        }
 
     //==================================================================
     VOID SplitAddress(const ADDRINT addr, ADDRINT & tag, UINT32 & setIndex, UINT32 & setOffSet)
@@ -564,28 +369,6 @@ class CACHE_BASE
     }
 
 
-    //==================================================================
-    VOID SaveUsageVector(CACHE_TAG &evicted_tag){
-        evicted_tag._bringAccess = this->_clock;
-        //printf("bring -> %llu \n",evicted_tag._bringAccess);
-
-        if (evicted_tag._tag == 0){
-            this->_coldStart++;
-        }
-        else {
-            this->_evictedLines++;
-        }
-    }
-
-    //==================================================================
-    VOID SaveUsageVectorFlush(CACHE_TAG &flushed_tag){
-        if (flushed_tag._tag == 0){
-            this->_unusedLines++;
-        }
-        else {
-            this->_flushedLines++;
-        }
-    }
 };
 
 
@@ -709,7 +492,6 @@ OPERATION CACHE_BASE::Find(UINT32 index, ADDRINT tag,  uint64_t clock, UINT32 of
 {
     INT32 way=-1;
 
-    UINT32 ActiveBits = 0;
     OPERATION ret_op = OPERATION_MISS;
 
     #ifdef DEBUG_MODE
@@ -718,19 +500,9 @@ OPERATION CACHE_BASE::Find(UINT32 index, ADDRINT tag,  uint64_t clock, UINT32 of
     #endif
 
     way = this->_sets[index].Find_Tag(this->GetAssociativity(), tag);
-    // If Hits and Valid Bits enable
-    if (way != -1 && this->_sets[index]._ways[way].CheckValidBitVector(offset, size) == OPERATION_HIT) {
-        ActiveBits = this->_sets[index]._ways[way].CountValidBitVector(this->_lineSize);
-        this->_usedBlocks[ActiveBits][accessType]++;
-
+    if (way != -1) {
         this->_sets[index]._ways[way].SetLastAccess(clock);
-        this->_sets[index]._ways[way].SetUsageVector(offset, size);
         ret_op = OPERATION_HIT;
-    }
-    else if (way != -1){ // Just wrong first
-        this->_bringWrongNumber++;
-        this->_bringWrongTime += this->_clock - this->_sets[index]._ways[way]._bringAccess ;
-        //printf("bring_number -> %llu    bring_time -> %llu\n",_bringWrongNumber, _bringWrongTime);
     }
 
     return ret_op;
@@ -747,23 +519,11 @@ VOID CACHE_BASE::Replace(UINT32 index, ADDRINT tag, uint64_t clock, UINT32 offse
 
     INT32 way=-1;
 
-    UINT32 ActiveBitsBefore=0, ActiveBitsAfter=0;
-
     way = this->_sets[index].Find_LRU(this->GetAssociativity());
     SaveStatistics(index, way);
 
-    this->SaveUsageVector( this->_sets[index]._ways[way] );
     this->_sets[index]._ways[way].SetTag(tag);
     this->_sets[index]._ways[way].SetLastAccess(clock);
-    this->_sets[index]._ways[way].CleanValidBitVector(this->_lineSize);
-    this->_sets[index]._ways[way].SetValidBitVectorNormal(0, this->_lineSize);
-    this->_sets[index]._ways[way].CleanUsageVector(this->_lineSize);
-    this->_sets[index]._ways[way].SetUsageVector(offset, size);
-
-
-    ActiveBitsAfter = this->_sets[index]._ways[way].CountValidBitVector(this->_lineSize);
-    this->_usedBlocks[ActiveBitsAfter][accessType]++;
-    this->_requestedBlocks[ActiveBitsAfter-ActiveBitsBefore]++;
 
 }
 
