@@ -1,9 +1,12 @@
-#include <stdlib.h>
+#include <cstdlib>
+#include <iostream>
+#include <cstring>
 
 #include "pin.H"
 
 #include "cache.H"
 #include "cache_parameters.H"
+
 
 KNOB<BOOL>   KnobTrackLoads(KNOB_MODE_WRITEONCE,            "pintool",  "tl",   "1",                "track individual loads");
 KNOB<BOOL>   KnobTrackStores(KNOB_MODE_WRITEONCE,           "pintool",  "ts",   "1",                "track individual stores");
@@ -17,47 +20,42 @@ INT32 Usage()
     return -1;
 }
 
-CACHE_STATS CountAccess[TOTAL_THREADS][3];
-CACHE_STATS CountAllAccess[TOTAL_THREADS];
+int num_threads = 0;
+
+CACHE_STATS CountAccess[MAX_THREADS][3];
+CACHE_STATS CountAllAccess[MAX_THREADS];
 PIN_LOCK lock;
 
 
-
-/* ===================================================================== */
 VOID LoadMulti(ADDRINT addr, UINT32 size, ADDRINT instAddr,THREADID threadid)
 {
     PIN_GetLock(&lock, threadid+1);
 
     CountAccess[threadid][ACCESS_TYPE_LOAD]++;
-    for (UINT32 i=0; i<TOTAL_CACHES_HIERARCHIES ; i++ ){
-        Hierarchies[0].dl1[threadid].Access(addr, size, ACCESS_TYPE_LOAD, instAddr);
-    }
+    Hierarchies[0].dl1[threadid].Access(addr, size, ACCESS_TYPE_LOAD, instAddr);
+
     PIN_ReleaseLock(&lock);
 }
 
 
-/* ===================================================================== */
 VOID StoreMulti(ADDRINT addr, UINT32 size, ADDRINT instAddr,THREADID threadid)
 {
     PIN_GetLock(&lock, threadid+1);
 
     CountAccess[threadid][ACCESS_TYPE_STORE]++;
-    for (UINT32 i=0; i<TOTAL_CACHES_HIERARCHIES ; i++ ){
-        Hierarchies[0].dl1[threadid].Access(addr, size, ACCESS_TYPE_STORE, instAddr);
-    }
+    Hierarchies[0].dl1[threadid].Access(addr, size, ACCESS_TYPE_STORE, instAddr);
+
     PIN_ReleaseLock(&lock);
 }
 
 
-/* ===================================================================== */
 VOID LoadInstructionMulti(ADDRINT addr, UINT32 size, ADDRINT instAddr,THREADID threadid)
 {
     PIN_GetLock(&lock, threadid+1);
 
     CountAccess[threadid][ACCESS_TYPE_INSTRUCTION]++;
-    for (UINT32 i=0; i<TOTAL_CACHES_HIERARCHIES ; i++ ){
-        Hierarchies[0].il1[threadid].Access(addr, size, ACCESS_TYPE_INSTRUCTION, instAddr);
-    }
+    Hierarchies[0].il1[threadid].Access(addr, size, ACCESS_TYPE_INSTRUCTION, instAddr);
+
     PIN_ReleaseLock(&lock);
 }
 
@@ -109,13 +107,12 @@ VOID binName(IMG img, VOID *v)
 }
 
 
-/* ===================================================================== */
 VOID Fini(int code, VOID * v)
 {
     CACHE_STATS TID=0; // Thread Id Iterator
     CACHE_STATS LVL=0; // Cache Level Iterator
 
-    CACHE_STATS Max_Threads = TOTAL_THREADS;
+    CACHE_STATS Max_Threads = num_threads;
 
     string filename = img_name+"."+to_string(Hierarchies[0].dl1[0].GetCacheSize()/KILO)+"KB"+to_string(Hierarchies[0].dl1[0].GetLineSize())+"B" + to_string(Levels) + "L.out";
 
@@ -123,7 +120,7 @@ VOID Fini(int code, VOID * v)
 
     for (LVL=0 ; LVL<Levels; LVL++){
 
-        if (LVL<Levels) Max_Threads = TOTAL_THREADS;
+        if (LVL<Levels-1) Max_Threads = num_threads;
         else Max_Threads = 1;
 
         //=====================================================================
@@ -202,8 +199,13 @@ VOID Fini(int code, VOID * v)
 
     }
     fclose(out);
+    cout << "Wrote " << filename << endl;
 }
 
+VOID ThreadStart(THREADID tid, CONTEXT *ctxt, INT32 flags, VOID *v)
+{
+    __sync_add_and_fetch(&num_threads, 1);
+}
 
 int main(int argc, char *argv[])
 {
@@ -214,7 +216,7 @@ int main(int argc, char *argv[])
         return Usage();
     }
 
-    for (UINT32 i=0; i<TOTAL_THREADS; i++){
+    for (UINT32 i=0; i<MAX_THREADS; i++){
         CountAllAccess[i] = 0;
         for (UINT32 j=0; j<3; j++){
             CountAccess[i][j] = 0;
@@ -223,6 +225,7 @@ int main(int argc, char *argv[])
 
     InitCache();
 
+    PIN_AddThreadStartFunction(ThreadStart, 0);
     IMG_AddInstrumentFunction(binName, 0);
     INS_AddInstrumentFunction(Instruction, 0);
     PIN_AddFiniFunction(Fini, 0);

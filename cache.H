@@ -1,57 +1,11 @@
-/*BEGIN_LEGAL
-Intel Open Source License
-
-Copyright (c) 2002-2011 Intel Corporation. All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are
-met:
-
-Redistributions of source code must retain the above copyright notice,
-this list of conditions and the following disclaimer.  Redistributions
-in binary form must reproduce the above copyright notice, this list of
-conditions and the following disclaimer in the documentation and/or
-other materials provided with the distribution.  Neither the name of
-the Intel Corporation nor the names of its contributors may be used to
-endorse or promote products derived from this software without
-specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE INTEL OR
-ITS CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-END_LEGAL */
-//
-// @ORIGINAL_AUTHOR: Artur Klauser
-// @EXTENDED: Marco Antonio Zanata Alves (marco.eu@gmail.com)
-//
-
-/*! @file
- *  This file contains a configurable cache class
- */
-
-#ifndef PIN_CACHE_H
-#define PIN_CACHE_H
-
+#ifndef CACHE_H
+#define CACHE_H
 
 #define __STDC_LIMIT_MACROS
 
 #include <sstream>
-#include <stdint.h>
-#include <assert.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cassert>
 #include <string>
-#include <limits>
-#include <list>
 
 using namespace std;
 
@@ -109,8 +63,8 @@ class CACHE_TAG
 {
   public:
     ADDRINT _tag;
-    uint64_t _lastAccess;
-    uint64_t _bringAccess;
+    UINT64 _lastAccess;
+    UINT64 _bringAccess;
 
     void InitTag(UINT32 words){
         _tag = 0;
@@ -129,10 +83,8 @@ class CACHE_TAG
     ADDRINT GetTag(){return this->_tag;}
 
     // LastAccess - Used for LRU ---------------------------------------
-    void SetLastAccess(uint64_t lastAccess){this->_lastAccess = lastAccess;}
-    uint64_t GetLastAccess() { return(this->_lastAccess); }
-
-
+    void SetLastAccess(UINT64 lastAccess){this->_lastAccess = lastAccess;}
+    UINT64 GetLastAccess() { return(this->_lastAccess); }
 };
 
 
@@ -140,24 +92,18 @@ class CACHE_SET
 {
   public:
     CACHE_TAG *_ways;
-    CACHE_STATS *_tmp;
 
     void InitSet(UINT32 ways, UINT32 words) {
         UINT32 i;
         this->_ways = new CACHE_TAG[ways];
-        this->_tmp = new CACHE_STATS[2*ways];
         for(i=0; i< ways; i++){
             _ways[i].InitTag(words);
-        }
-        for(i=0; i< 2*ways; i++){
-            _tmp[i] = 0;
         }
     }
 
     void InitSetTable(UINT32 ways, UINT32 words) {
         UINT32 i;
         this->_ways = new CACHE_TAG[ways];
-        //this->_tmp = new CACHE_STATS[1];
         for(i=0; i< ways; i++){
             _ways[i].InitTagTable(words);
         }
@@ -176,7 +122,7 @@ class CACHE_SET
     INT32 Find_LRU(UINT32 ways){
         UINT32 i;
         UINT32 old_way = 0;
-        uint64_t old_clock = this->_ways[0].GetLastAccess();
+        UINT64 old_clock = this->_ways[0].GetLastAccess();
         for(i=0; i < ways; i++){
              if (old_clock > this->_ways[i].GetLastAccess()){
                 old_clock = this->_ways[i].GetLastAccess();
@@ -194,7 +140,7 @@ class CACHE_BASE
 {
   private:
     // Input Parameters ------------------------------------------------
-    std::string _name;
+    string _name;
     UINT32 _cacheLevel;
     UINT32 _cacheSize;
     UINT32 _lineSize;
@@ -207,7 +153,7 @@ class CACHE_BASE
     UINT32 _lineShift;
     UINT32 _indexMask;
     UINT32 _offSetMask;
-    uint64_t _clock;
+    UINT64 _clock;
 
     CACHE_SET *_sets;
 
@@ -221,7 +167,7 @@ class CACHE_BASE
   public:
 
     // allocator
-    void Init(std::string name, CACHE_TYPE cacheType, UINT32 cacheLevel, UINT32 cacheSize, UINT32 lineSize, UINT32 associativity, STORE_ALLOCATION writeAllocate);
+    void Init(string name, CACHE_TYPE cacheType, UINT32 cacheLevel, UINT32 cacheSize, UINT32 lineSize, UINT32 associativity, STORE_ALLOCATION writeAllocate);
 
     // Accessors
     VOID SetCacheSize(UINT32 cacheSize) { this->_cacheSize = cacheSize; }
@@ -241,8 +187,8 @@ class CACHE_BASE
     VOID PrintName(){ fprintf(stderr,"Name: %s\n",this->_name.c_str() );}
 
     OPERATION Access(ADDRINT addr, UINT32 size, ACCESS_TYPE accessType, ADDRINT pc);
-    OPERATION Find(UINT32 index, ADDRINT tag,  uint64_t clock, UINT32 offset, UINT32 size, ACCESS_TYPE accessType, ADDRINT pc);
-    VOID Replace(UINT32 index, ADDRINT tag, uint64_t clock, UINT32 offset, UINT32 size, ACCESS_TYPE accessType, ADDRINT pc, ADDRINT addr);
+    OPERATION Find(UINT32 index, ADDRINT tag,  UINT64 clock, UINT32 offset, UINT32 size, ACCESS_TYPE accessType, ADDRINT pc);
+    VOID Replace(UINT32 index, ADDRINT tag, UINT64 clock, UINT32 offset, UINT32 size, ACCESS_TYPE accessType, ADDRINT pc, ADDRINT addr);
 
 
     // Statistics
@@ -279,7 +225,7 @@ class CACHE_BASE
 };
 
 
-void CACHE_BASE::Init(std::string name, CACHE_TYPE cacheType, UINT32 cacheLevel, UINT32 cacheSize, UINT32 lineSize, UINT32 associativity, STORE_ALLOCATION writeAllocate)
+void CACHE_BASE::Init(string name, CACHE_TYPE cacheType, UINT32 cacheLevel, UINT32 cacheSize, UINT32 lineSize, UINT32 associativity, STORE_ALLOCATION writeAllocate)
 {
     CACHE_STATS i;
 
@@ -373,7 +319,7 @@ OPERATION CACHE_BASE::Access(ADDRINT addr, UINT32 size, ACCESS_TYPE accessType, 
 
 
 /* ===================================================================== */
-OPERATION CACHE_BASE::Find(UINT32 index, ADDRINT tag,  uint64_t clock, UINT32 offset, UINT32 size, ACCESS_TYPE accessType, ADDRINT pc)
+OPERATION CACHE_BASE::Find(UINT32 index, ADDRINT tag,  UINT64 clock, UINT32 offset, UINT32 size, ACCESS_TYPE accessType, ADDRINT pc)
 {
     INT32 way=-1;
 
@@ -396,7 +342,7 @@ OPERATION CACHE_BASE::Find(UINT32 index, ADDRINT tag,  uint64_t clock, UINT32 of
 
 
 /* ===================================================================== */
-VOID CACHE_BASE::Replace(UINT32 index, ADDRINT tag, uint64_t clock, UINT32 offset, UINT32 size, ACCESS_TYPE accessType, ADDRINT pc, ADDRINT addr)
+VOID CACHE_BASE::Replace(UINT32 index, ADDRINT tag, UINT64 clock, UINT32 offset, UINT32 size, ACCESS_TYPE accessType, ADDRINT pc, ADDRINT addr)
 {
     #ifdef DEBUG_MODE
         if (offset+size > this->_lineSize || offset+size > MAX_LINE_SIZE){ fprintf(stderr,"Replace() - offset+size >= this->_lineSize");  ASSERTX(false); }
@@ -411,4 +357,4 @@ VOID CACHE_BASE::Replace(UINT32 index, ADDRINT tag, uint64_t clock, UINT32 offse
 
 }
 
-#endif // PIN_CACHE_H
+#endif // CACHE_H

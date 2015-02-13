@@ -1,6 +1,3 @@
-/* ===================================================================== */
-// CLASSES
-/* ===================================================================== */
 class CACHE_PARAMS
 {
     public:
@@ -19,7 +16,6 @@ class CACHE_PARAMS
     }
 };
 
-/* ===================================================================== */
 class CACHE_LEVEL
 {
     public:
@@ -34,41 +30,34 @@ class CACHE_LEVEL
         il1 = NULL;
     }
 };
-/* ===================================================================== */
 
-UINT32 Levels;
-UINT32 *Profiles;
-CACHE_LEVEL *Hierarchies;
 
-#define TOTAL_THREADS 4  // Total of threads to keep track of
-#define TOTAL_CACHES_HIERARCHIES 1// Total of models to simulate
+UINT32 Levels = 3;
+CACHE_LEVEL Hierarchies[3];
 
-/* ===================================================================== */
+#define MAX_THREADS 1024  // Total of threads to keep track of
+
+
 static VOID InitCache()
 {
-    UINT32 i=0,j=0;
+    int j;
 
-    Levels = 3;
-
-    Hierarchies = new CACHE_LEVEL[3];
-
-
-    //===== LEVEL 1
+    //===== LEVEL 1 D
     Hierarchies[0].params_dl1._cacheSize = 32;
     Hierarchies[0].params_dl1._lineSize = 64;
     Hierarchies[0].params_dl1._associativity = 8;
     Hierarchies[1].params_dl1._writeAllocate = STORE_ALLOCATE;
-    //==
+    //===== LEVEL 1 I
     Hierarchies[0].params_il1._cacheSize = 32;
     Hierarchies[0].params_il1._lineSize = 64;
     Hierarchies[0].params_il1._associativity = 8;
     Hierarchies[1].params_il1._writeAllocate = STORE_ALLOCATE;
-    //==== LEVE
+    //==== LEVEL 2
     Hierarchies[1].params_dl1._cacheSize = 256;
     Hierarchies[1].params_dl1._lineSize = 64;
     Hierarchies[1].params_dl1._associativity = 16;
     Hierarchies[1].params_dl1._writeAllocate = STORE_ALLOCATE;
-    //==== LEVE
+    //==== LEVEL 3
     Hierarchies[2].params_dl1._cacheSize = 1024;
     Hierarchies[2].params_dl1._lineSize = 64;
     Hierarchies[2].params_dl1._associativity = 32;
@@ -83,10 +72,10 @@ static VOID InitCache()
     // SET CACHE L1 ================================================
     //==============================================================
     //Allocate the 1 Level Cache - DATA
-    Hierarchies[0].dl1 = new CACHE_BASE[TOTAL_THREADS];
+    Hierarchies[0].dl1 = new CACHE_BASE[MAX_THREADS];
     //Allocate the 1 Level Cache - INSTRUCTION
-    Hierarchies[0].il1 = new CACHE_BASE[TOTAL_THREADS];
-    for (j=0; j<TOTAL_THREADS;j++){
+    Hierarchies[0].il1 = new CACHE_BASE[MAX_THREADS];
+    for (j=0; j<MAX_THREADS;j++){
         Hierarchies[0].dl1[j].Init("Data Cache",         CACHE_TYPE_DCACHE, 1, Hierarchies[0].params_dl1._cacheSize * KILO,
                                                                     Hierarchies[0].params_dl1._lineSize,
                                                                     Hierarchies[0].params_dl1._associativity,
@@ -101,8 +90,8 @@ static VOID InitCache()
     // SET CACHE L2 ================================================
     //==============================================================
     if (Levels >= 2){
-        Hierarchies[1].dl1 = new CACHE_BASE[TOTAL_THREADS];
-        for (j=0; j<TOTAL_THREADS;j++){
+        Hierarchies[1].dl1 = new CACHE_BASE[MAX_THREADS];
+        for (j=0; j<MAX_THREADS;j++){
             Hierarchies[1].dl1[j].Init("Data Cache", CACHE_TYPE_DCACHE, 2, Hierarchies[1].params_dl1._cacheSize * KILO,
                                                                         Hierarchies[1].params_dl1._lineSize,
                                                                         Hierarchies[1].params_dl1._associativity,
@@ -120,32 +109,28 @@ static VOID InitCache()
                                                  (STORE_ALLOCATION) Hierarchies[2].params_dl1._writeAllocate);
     }
 
-    for (i=0 ; i<TOTAL_CACHES_HIERARCHIES ; i++ ){\
-        // CONNECT CACHE L1 => L2 ======================================
-        //==============================================================
-        if (Levels > 1){
-            for (j=0; j<TOTAL_THREADS;j++){
-                Hierarchies[0].dl1[j].SetNextCacheLevel( &Hierarchies[1].dl1[j] );
-                Hierarchies[0].il1[j].SetNextCacheLevel( &Hierarchies[1].dl1[j] );
-            }
+    // CONNECT CACHE L1 => L2 ======================================
+    //==============================================================
+    if (Levels > 1){
+        for (j=0; j<MAX_THREADS;j++){
+            Hierarchies[0].dl1[j].SetNextCacheLevel( &Hierarchies[1].dl1[j] );
+            Hierarchies[0].il1[j].SetNextCacheLevel( &Hierarchies[1].dl1[j] );
         }
+    }
 
-        // CONNECT CACHE L2 => L3 ======================================
-        //==============================================================
-        if (Levels > 2){
-            for (j=0; j<TOTAL_THREADS;j++){
-                Hierarchies[1].dl1[j].SetNextCacheLevel( &Hierarchies[2].dl1[0] );
-            }
+    // CONNECT CACHE L2 => L3 ======================================
+    //==============================================================
+    if (Levels > 2){
+        for (j=0; j<MAX_THREADS;j++){
+            Hierarchies[1].dl1[j].SetNextCacheLevel( &Hierarchies[2].dl1[0] );
         }
     }
 
     #ifdef DEBUG_MODE
         fprintf(stderr,"Set 3 Checking Caches Connection\n");
-        for (i=0 ; i<TOTAL_CACHES_HIERARCHIES ; i++ ){
-            for (j=0 ; j<Levels; j++){
-                if (Hierarchies[j].dl1[0].GetNextCacheLevel() != NULL){
-                    Hierarchies[j].dl1[0].GetNextCacheLevel()->PrintName();
-                }
+        for (j=0 ; j<Levels; j++){
+            if (Hierarchies[j].dl1[0].GetNextCacheLevel() != NULL){
+                Hierarchies[j].dl1[0].GetNextCacheLevel()->PrintName();
             }
         }
 
