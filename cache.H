@@ -40,9 +40,7 @@ END_LEGAL */
 #ifndef PIN_CACHE_H
 #define PIN_CACHE_H
 
-/* ========================================================================================================================================== */
-/* Includes                                                              */
-/* ========================================================================================================================================== */
+
 #define __STDC_LIMIT_MACROS
 
 #include <sstream>
@@ -56,34 +54,17 @@ END_LEGAL */
 #include <list>
 
 using namespace std;
-/* ========================================================================================================================================== */
-/* Defines                                                               */
-/* ========================================================================================================================================== */
-#define KILO 1024
-#define MEGA (KILO*KILO)
-#define GIGA (KILO*MEGA)
-#define MAX_ASSOCIATIVITY 8192
-#define MAX_LINE_SIZE 64
-#define SUB_BLOCK 16
 
-#define WRONG_WHOLE
-#define LEARN_WHOLE
-/* ========================================================================================================================================== */
-/* Type Definition                                                       */
-/* ========================================================================================================================================== */
+#define KILO 1024
+
 typedef long long unsigned int CACHE_STATS; // type of cache hit/miss counters
 
-
-/* ========================================================================================================================================== */
-/* Enumarations                                                          */
-/* ========================================================================================================================================== */
 enum OPERATION {
     OPERATION_MISS = 0,
     OPERATION_HIT = 1,
     OPERATION_NUM
 };
 
-// types, constants
 enum ACCESS_TYPE {
     ACCESS_TYPE_INSTRUCTION,
     ACCESS_TYPE_LOAD,
@@ -100,29 +81,14 @@ enum CACHE_TYPE{
 enum STORE_ALLOCATION{
     STORE_NO_ALLOCATE,
     STORE_ALLOCATE
-} ;
+};
 
 
-/* ========================================================================================================================================== */
-/* Static Functions                                                      */
-/* ========================================================================================================================================== */
-
-/* ===================================================================== */
-/*!
- *  @brief Checks if n is a power of 2.
- *  @returns true if n is power of 2
- */
 static bool IsPower2(UINT32 n)
 {
     return ((n & (n - 1)) == 0);
 }
 
-/* ===================================================================== */
-/*!
- *  @brief Computes floor(log2(n))
- *  Works by finding position of MSB set.
- *  @returns -1 if n == 0.
- */
 static INT32 FloorLog2(UINT32 n)
 {
     INT32 p = 0;
@@ -139,30 +105,6 @@ static INT32 FloorLog2(UINT32 n)
 }
 
 
-/* ===================================================================== */
-/*!
- *  Call Example
- *  char binary[65];
- *  address_to_binary(uint64_t(this->_bankMask),binary);
- *  fprintf(stderr,"OffSet %s\n",binary);
- */
-VOID address_to_binary(uint64_t x, char *ch)
-{
-    uint64_t z;
-    char *b = ch;
-    b[0] = '\0';
-
-    for (z = (uint64_t)INT64_MAX+1; z > 0; z >>= 1){
-        strcat(b, ((x & z) == z) ? "1" : "0");
-    }
-}
-
-/* ========================================================================================================================================== */
-/* Classes Declaration                                                      */
-/* ========================================================================================================================================== */
-
-
-/* ===================================================================== */
 class CACHE_TAG
 {
   public:
@@ -194,7 +136,6 @@ class CACHE_TAG
 };
 
 
-/* ===================================================================== */
 class CACHE_SET
 {
   public:
@@ -249,10 +190,6 @@ class CACHE_SET
 
 
 
-/* ===================================================================== */
-/*!
- *  @brief Generic cache base class; no allocate specialization, no cache set specialization
- */
 class CACHE_BASE
 {
   private:
@@ -276,36 +213,12 @@ class CACHE_BASE
 
     // Statistics ------------------------------------------------------
     CACHE_STATS _access[ACCESS_TYPE_NUM][OPERATION_NUM];
-    CACHE_STATS **_usedBlocks;
-    CACHE_STATS *_requestedBlocks;
     CACHE_STATS _evictedLines;
     CACHE_STATS _unusedLines;
     CACHE_STATS _coldStart;
     CACHE_STATS _flushedLines;
-    CACHE_STATS _bringWrongTime;
-    CACHE_STATS _bringWrongNumber;
-
-    CACHE_STATS _predictCorrect;
-    CACHE_STATS _predictCorrectNormal;
-    CACHE_STATS _predictCorrectLearn;
-    CACHE_STATS _predictCorrectWrongFirst;
-
-    CACHE_STATS _predictOver;
-    CACHE_STATS _predictOverNormal;
-    CACHE_STATS _predictOverLearn;
-    CACHE_STATS _predictOverWrongFirst;
-
-    CACHE_STATS _predictMiss;
-    CACHE_STATS _predictMissNormal;
-    CACHE_STATS _predictMissLearn;
-    CACHE_STATS _predictMissWrongFirst;
-
-  protected:
-    UINT32 NumSets() const { return _indexMask + 1; }
 
   public:
-    // constructors/destructors
-    CACHE_BASE();
 
     // allocator
     void Init(std::string name, CACHE_TYPE cacheType, UINT32 cacheLevel, UINT32 cacheSize, UINT32 lineSize, UINT32 associativity, STORE_ALLOCATION writeAllocate);
@@ -363,26 +276,12 @@ class CACHE_BASE
          #endif
     }
 
-    //==================================================================
-    VOID SaveStatistics(UINT32 Index, UINT32 Way){
-        // ~ this->_predictOver += this->_sets[Index]._ways[Way].CountOverPredict(this->_lineSize);
-    }
-
-
 };
 
 
-
-/* ========================================================================================================================================== */
-/*            METHODS                                                    */
-/* ========================================================================================================================================== */
-CACHE_BASE::CACHE_BASE(){}
-
-/* ===================================================================== */
-
 void CACHE_BASE::Init(std::string name, CACHE_TYPE cacheType, UINT32 cacheLevel, UINT32 cacheSize, UINT32 lineSize, UINT32 associativity, STORE_ALLOCATION writeAllocate)
 {
-    CACHE_STATS i,j;
+    CACHE_STATS i;
 
     this->_name = name;
     this->_cacheType = cacheType;
@@ -398,7 +297,6 @@ void CACHE_BASE::Init(std::string name, CACHE_TYPE cacheType, UINT32 cacheLevel,
     this->_indexMask = (this->_cacheSize / (this->_associativity * this->_lineSize)) - 1;
     this->_offSetMask = this->_lineSize - 1;
 
-    ASSERTX(this->GetAssociativity() <= MAX_ASSOCIATIVITY);
     ASSERTX(this->GetCacheSize() != 0);
     ASSERTX(IsPower2(this->GetAssociativity()));
     ASSERTX(IsPower2(this->_lineSize));
@@ -418,22 +316,9 @@ void CACHE_BASE::Init(std::string name, CACHE_TYPE cacheType, UINT32 cacheLevel,
     this->_unusedLines=0;
     this->_flushedLines=0;
     this->_coldStart=0;
-    this->_bringWrongTime=0;
-    this->_bringWrongNumber=0;
-
-    this->_requestedBlocks = new CACHE_STATS[(this->_lineSize/SUB_BLOCK)+1];
-    this->_usedBlocks = new CACHE_STATS*[(this->_lineSize/SUB_BLOCK)+1];
-
-    for (i = 0; i<=this->_lineSize/SUB_BLOCK ; i++){
-        this->_requestedBlocks[i] = 0;
-        this->_usedBlocks[i] = new CACHE_STATS[ACCESS_TYPE_NUM];
-        for (j = 0; j < ACCESS_TYPE_NUM ; j++){
-            this->_usedBlocks[i][j] = 0;
-        }
-    }
 }
 
-/* ===================================================================== */
+
 OPERATION CACHE_BASE::Access(ADDRINT addr, UINT32 size, ACCESS_TYPE accessType, ADDRINT pc)
 {
     const ADDRINT highAddr = addr + size;
@@ -520,7 +405,6 @@ VOID CACHE_BASE::Replace(UINT32 index, ADDRINT tag, uint64_t clock, UINT32 offse
     INT32 way=-1;
 
     way = this->_sets[index].Find_LRU(this->GetAssociativity());
-    SaveStatistics(index, way);
 
     this->_sets[index]._ways[way].SetTag(tag);
     this->_sets[index]._ways[way].SetLastAccess(clock);
