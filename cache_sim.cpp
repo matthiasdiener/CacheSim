@@ -1,9 +1,13 @@
 #include <cstdlib>
 #include <iostream>
 #include <cstring>
+#include <unordered_map>
+#include <map>
 
 #include "pin.H"
 
+
+#define MAX_THREADS 1024  // Total of threads to keep track of
 #include "cache.H"
 #include "cache_parameters.H"
 
@@ -11,6 +15,8 @@
 KNOB<BOOL>   KnobTrackLoads(KNOB_MODE_WRITEONCE,            "pintool",  "tl",   "1",                "track individual loads");
 KNOB<BOOL>   KnobTrackStores(KNOB_MODE_WRITEONCE,           "pintool",  "ts",   "1",                "track individual stores");
 KNOB<BOOL>   KnobTrackInstructions(KNOB_MODE_WRITEONCE,     "pintool",  "ti",   "0",                "track individual instructions -- increases profiling time");
+
+UINT64 comm_matrix[MAX_THREADS][MAX_THREADS]; // comm matrix
 
 
 INT32 Usage()
@@ -24,6 +30,7 @@ int num_threads = 0;
 
 CACHE_STATS CountAccess[MAX_THREADS][3];
 PIN_LOCK lock;
+map<UINT32, UINT32> pidmap; // pid -> tid
 
 
 VOID LoadMulti(ADDRINT addr, UINT32 size, ADDRINT instAddr,THREADID threadid)
@@ -31,7 +38,7 @@ VOID LoadMulti(ADDRINT addr, UINT32 size, ADDRINT instAddr,THREADID threadid)
     PIN_GetLock(&lock, threadid+1);
 
     CountAccess[threadid][ACCESS_TYPE_LOAD]++;
-    Hierarchies[0].dl1[threadid].Access(addr, size, ACCESS_TYPE_LOAD, instAddr);
+    Hierarchies[0].dl1[threadid].Access(addr, size, ACCESS_TYPE_LOAD, instAddr, threadid);
 
     PIN_ReleaseLock(&lock);
 }
@@ -42,7 +49,7 @@ VOID StoreMulti(ADDRINT addr, UINT32 size, ADDRINT instAddr,THREADID threadid)
     PIN_GetLock(&lock, threadid+1);
 
     CountAccess[threadid][ACCESS_TYPE_STORE]++;
-    Hierarchies[0].dl1[threadid].Access(addr, size, ACCESS_TYPE_STORE, instAddr);
+    Hierarchies[0].dl1[threadid].Access(addr, size, ACCESS_TYPE_STORE, instAddr, threadid);
 
     PIN_ReleaseLock(&lock);
 }
@@ -53,7 +60,7 @@ VOID LoadInstructionMulti(ADDRINT addr, UINT32 size, ADDRINT instAddr,THREADID t
     PIN_GetLock(&lock, threadid+1);
 
     CountAccess[threadid][ACCESS_TYPE_INSTRUCTION]++;
-    Hierarchies[0].il1[threadid].Access(addr, size, ACCESS_TYPE_INSTRUCTION, instAddr);
+    Hierarchies[0].il1[threadid].Access(addr, size, ACCESS_TYPE_INSTRUCTION, instAddr, threadid);
 
     PIN_ReleaseLock(&lock);
 }
@@ -116,6 +123,26 @@ VOID Fini(int code, VOID * v)
     string filename = img_name+"."+to_string(Hierarchies[0].dl1[0].GetCacheSize()/KILO)+"KB"+to_string(Hierarchies[0].dl1[0].GetLineSize())+"B" + to_string(Levels) + "L.out";
 
     FILE *out = fopen(filename.c_str(), "w");
+
+    int real_tid[MAX_THREADS+1];
+    int i = 0, a, b;
+
+    for (auto it : pidmap) {
+        cout << it.first << " " << it.second << "i: " << i << endl;
+        real_tid[it.second] = i++;
+    }
+
+    for (int i = num_threads-1; i>=0; i--) {
+        a = real_tid[i];
+        for (int j = 0; j<num_threads; j++) {
+            b = real_tid[j];
+            cout << comm_matrix[a][b] + comm_matrix[b][a];
+            if (j != num_threads-1)
+                cout << ",";
+        }
+        cout << endl;
+    }
+    cout << endl;
 
     for (LVL=0 ; LVL<Levels; LVL++){
 
@@ -204,6 +231,8 @@ VOID Fini(int code, VOID * v)
 VOID ThreadStart(THREADID tid, CONTEXT *ctxt, INT32 flags, VOID *v)
 {
     __sync_add_and_fetch(&num_threads, 1);
+    int pid = PIN_GetTid();
+    pidmap[pid] = tid;
 }
 
 int main(int argc, char *argv[])

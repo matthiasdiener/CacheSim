@@ -8,6 +8,10 @@
 #include <string>
 
 using namespace std;
+extern int num_threads;
+extern UINT64 comm_matrix[MAX_THREADS][MAX_THREADS];
+extern map<UINT32, UINT32> pidmap; // pid -> tid
+
 
 #define KILO 1024
 
@@ -65,6 +69,8 @@ class CACHE_TAG
     ADDRINT _tag;
     UINT64 _lastAccess;
     UINT64 _bringAccess;
+
+    UINT8 tids[64];
 
     void InitTag(UINT32 words){
         _tag = 0;
@@ -186,9 +192,9 @@ class CACHE_BASE
     CACHE_BASE *GetNextCacheLevel() { return this->_nextCacheLevel; }
     VOID PrintName(){ fprintf(stderr,"Name: %s\n",this->_name.c_str() );}
 
-    OPERATION Access(ADDRINT addr, UINT32 size, ACCESS_TYPE accessType, ADDRINT pc);
-    OPERATION Find(UINT32 index, ADDRINT tag,  UINT64 clock, UINT32 offset, UINT32 size, ACCESS_TYPE accessType, ADDRINT pc);
-    VOID Replace(UINT32 index, ADDRINT tag, UINT64 clock, UINT32 offset, UINT32 size, ACCESS_TYPE accessType, ADDRINT pc, ADDRINT addr);
+    OPERATION Access(ADDRINT addr, UINT32 size, ACCESS_TYPE accessType, ADDRINT pc, THREADID threadid);
+    OPERATION Find(UINT32 index, ADDRINT tag,  UINT64 clock, UINT32 offset, UINT32 size, ACCESS_TYPE accessType, ADDRINT pc, THREADID threadid);
+    VOID Replace(UINT32 index, ADDRINT tag, UINT64 clock, UINT32 offset, UINT32 size, ACCESS_TYPE accessType, ADDRINT pc, ADDRINT addr, THREADID threadid);
 
 
     // Statistics
@@ -265,7 +271,7 @@ void CACHE_BASE::Init(string name, CACHE_TYPE cacheType, UINT32 cacheLevel, UINT
 }
 
 
-OPERATION CACHE_BASE::Access(ADDRINT addr, UINT32 size, ACCESS_TYPE accessType, ADDRINT pc)
+OPERATION CACHE_BASE::Access(ADDRINT addr, UINT32 size, ACCESS_TYPE accessType, ADDRINT pc, THREADID threadid)
 {
     const ADDRINT highAddr = addr + size;
     const ADDRINT lineSize = GetLineSize();
@@ -290,7 +296,8 @@ OPERATION CACHE_BASE::Access(ADDRINT addr, UINT32 size, ACCESS_TYPE accessType, 
         else {
             sizeNow = size;                     //SizeNow = |......xxxxx.|
         }
-        localHit = Find(setIndex, tag, this->_clock, setOffSet, sizeNow, accessType, pc);
+        localHit = Find(setIndex, tag, this->_clock, setOffSet, sizeNow, accessType, pc, threadid);
+
 
         // on miss, loads always allocate, stores optionally
         if ( ! localHit )
@@ -299,12 +306,12 @@ OPERATION CACHE_BASE::Access(ADDRINT addr, UINT32 size, ACCESS_TYPE accessType, 
 
             // Miss is send to the next level cache.
             if (this->_nextCacheLevel != NULL){
-                this->_nextCacheLevel->Access(addr, sizeNow, accessType, pc);
+                this->_nextCacheLevel->Access(addr, sizeNow, accessType, pc, threadid);
             }
 
             // Solves the miss.
             if ( accessType == ACCESS_TYPE_LOAD || accessType == ACCESS_TYPE_INSTRUCTION || _writeAllocate == STORE_ALLOCATE ){
-                Replace(setIndex, tag, this->_clock, setOffSet, sizeNow, accessType, pc, addr);
+                Replace(setIndex, tag, this->_clock, setOffSet, sizeNow, accessType, pc, addr, threadid);
             }
         }
 
@@ -318,8 +325,7 @@ OPERATION CACHE_BASE::Access(ADDRINT addr, UINT32 size, ACCESS_TYPE accessType, 
 }
 
 
-/* ===================================================================== */
-OPERATION CACHE_BASE::Find(UINT32 index, ADDRINT tag,  UINT64 clock, UINT32 offset, UINT32 size, ACCESS_TYPE accessType, ADDRINT pc)
+OPERATION CACHE_BASE::Find(UINT32 index, ADDRINT tag,  UINT64 clock, UINT32 offset, UINT32 size, ACCESS_TYPE accessType, ADDRINT pc, THREADID threadid)
 {
     INT32 way=-1;
 
@@ -333,6 +339,14 @@ OPERATION CACHE_BASE::Find(UINT32 index, ADDRINT tag,  UINT64 clock, UINT32 offs
     way = this->_sets[index].Find_Tag(this->GetAssociativity(), tag);
     if (way != -1) {
         this->_sets[index]._ways[way].SetLastAccess(clock);
+
+        for (int i=0; i<num_threads; i++) {
+            if (this->_sets[index]._ways[way].tids[i] == 1 && i!=threadid) {
+                comm_matrix[i][threadid]++;
+            }
+        }
+        this->_sets[index]._ways[way].tids[threadid] = 1;
+
         ret_op = OPERATION_HIT;
     }
 
@@ -341,8 +355,7 @@ OPERATION CACHE_BASE::Find(UINT32 index, ADDRINT tag,  UINT64 clock, UINT32 offs
 
 
 
-/* ===================================================================== */
-VOID CACHE_BASE::Replace(UINT32 index, ADDRINT tag, UINT64 clock, UINT32 offset, UINT32 size, ACCESS_TYPE accessType, ADDRINT pc, ADDRINT addr)
+VOID CACHE_BASE::Replace(UINT32 index, ADDRINT tag, UINT64 clock, UINT32 offset, UINT32 size, ACCESS_TYPE accessType, ADDRINT pc, ADDRINT addr, THREADID threadid)
 {
     #ifdef DEBUG_MODE
         if (offset+size > this->_lineSize || offset+size > MAX_LINE_SIZE){ fprintf(stderr,"Replace() - offset+size >= this->_lineSize");  ASSERTX(false); }
@@ -354,6 +367,19 @@ VOID CACHE_BASE::Replace(UINT32 index, ADDRINT tag, UINT64 clock, UINT32 offset,
 
     this->_sets[index]._ways[way].SetTag(tag);
     this->_sets[index]._ways[way].SetLastAccess(clock);
+
+
+
+    for (int i=0; i<num_threads; i++) {
+        this->_sets[index]._ways[way].tids[i] = 0;
+        // cout << "should not happen x" << this->_sets[index]._ways[way].tids[0] << endl;
+        // if (this->_sets[index]._ways[way].tids[i] == 1 && i!=threadid) {
+        //     cout << "should not happen" << endl;
+        //     comm_matrix[i][threadid]++;
+        // }
+    }
+    this->_sets[index]._ways[way].tids[threadid] = 1;
+
 
 }
 

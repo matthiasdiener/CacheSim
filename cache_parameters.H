@@ -35,7 +35,7 @@ class CACHE_LEVEL
 UINT32 Levels = 3;
 CACHE_LEVEL Hierarchies[3];
 
-#define MAX_THREADS 1024  // Total of threads to keep track of
+
 
 
 static VOID InitCache()
