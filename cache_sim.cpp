@@ -23,7 +23,6 @@ INT32 Usage()
 int num_threads = 0;
 
 CACHE_STATS CountAccess[MAX_THREADS][3];
-CACHE_STATS CountAllAccess[MAX_THREADS];
 PIN_LOCK lock;
 
 
@@ -217,7 +216,6 @@ int main(int argc, char *argv[])
     }
 
     for (UINT32 i=0; i<MAX_THREADS; i++){
-        CountAllAccess[i] = 0;
         for (UINT32 j=0; j<3; j++){
             CountAccess[i][j] = 0;
         }
