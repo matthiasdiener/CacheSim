@@ -12,6 +12,9 @@ extern int num_threads;
 extern UINT64 comm_matrix[MAX_THREADS][MAX_THREADS];
 extern map<UINT32, UINT32> pidmap; // pid -> tid
 
+UINT64 spatial_comm = 0;
+UINT64 true_comm = 0;
+UINT64 no_comm = 0;
 
 #define KILO 1024
 
@@ -70,7 +73,8 @@ class CACHE_TAG
     UINT64 _lastAccess;
     UINT64 _bringAccess;
 
-    UINT8 tids[64];
+    UINT8 tids[MAX_THREADS];
+    UINT8 offsets[MAX_THREADS];
 
     void InitTag(UINT32 words){
         _tag = 0;
@@ -325,9 +329,10 @@ OPERATION CACHE_BASE::Access(ADDRINT addr, UINT32 size, ACCESS_TYPE accessType, 
 }
 
 
-OPERATION CACHE_BASE::Find(UINT32 index, ADDRINT tag,  UINT64 clock, UINT32 offset, UINT32 size, ACCESS_TYPE accessType, ADDRINT pc, THREADID threadid)
+OPERATION CACHE_BASE::Find(UINT32 index, ADDRINT tag, UINT64 clock, UINT32 offset, UINT32 size, ACCESS_TYPE accessType, ADDRINT pc, THREADID threadid)
 {
     INT32 way=-1;
+    int is_comm = 0;
 
     OPERATION ret_op = OPERATION_MISS;
 
@@ -341,14 +346,25 @@ OPERATION CACHE_BASE::Find(UINT32 index, ADDRINT tag,  UINT64 clock, UINT32 offs
         this->_sets[index]._ways[way].SetLastAccess(clock);
 
         for (int i=0; i<num_threads; i++) {
-            if (this->_sets[index]._ways[way].tids[i] == 1 && i!=threadid) {
+            if (this->_sets[index]._ways[way].tids[i] == 1 && (unsigned) i!=threadid) {
                 comm_matrix[i][threadid]++;
+                is_comm++;
+                if (this->_sets[index]._ways[way].offsets[i] != offset)
+                    spatial_comm++;
+                else
+                    true_comm++;
+
             }
         }
+
         this->_sets[index]._ways[way].tids[threadid] = 1;
+        this->_sets[index]._ways[way].offsets[threadid] = offset;
 
         ret_op = OPERATION_HIT;
     }
+
+    if (is_comm==0)
+        no_comm++;
 
     return ret_op;
 }

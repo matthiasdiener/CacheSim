@@ -37,30 +37,40 @@ CACHE_LEVEL Hierarchies[3];
 
 
 
+extern KNOB<BOOL>   KnobInf;
 
 static VOID InitCache()
 {
     int j;
 
     //===== LEVEL 1 D
-    Hierarchies[0].params_dl1._cacheSize = 32;
+    Hierarchies[0].params_dl1._cacheSize = 16;
     Hierarchies[0].params_dl1._lineSize = 64;
     Hierarchies[0].params_dl1._associativity = 8;
     Hierarchies[1].params_dl1._writeAllocate = STORE_ALLOCATE;
+
     //===== LEVEL 1 I
-    Hierarchies[0].params_il1._cacheSize = 32;
+    Hierarchies[0].params_il1._cacheSize = 16;
     Hierarchies[0].params_il1._lineSize = 64;
     Hierarchies[0].params_il1._associativity = 8;
     Hierarchies[1].params_il1._writeAllocate = STORE_ALLOCATE;
+
     //==== LEVEL 2
-    Hierarchies[1].params_dl1._cacheSize = 256;
+    Hierarchies[1].params_dl1._cacheSize = 64;
     Hierarchies[1].params_dl1._lineSize = 64;
     Hierarchies[1].params_dl1._associativity = 16;
     Hierarchies[1].params_dl1._writeAllocate = STORE_ALLOCATE;
+
     //==== LEVEL 3
-    Hierarchies[2].params_dl1._cacheSize = 1024;
+    if (KnobInf) {
+        Hierarchies[2].params_dl1._cacheSize = 1024*256;
+        Hierarchies[2].params_dl1._associativity = Hierarchies[2].params_dl1._cacheSize / Hierarchies[2].params_dl1._lineSize * 16;
+        cout << "Infinite LLC" << endl;
+    } else {
+        Hierarchies[2].params_dl1._cacheSize = 16;
+        Hierarchies[2].params_dl1._associativity = 32;
+    }
     Hierarchies[2].params_dl1._lineSize = 64;
-    Hierarchies[2].params_dl1._associativity = 32;
     Hierarchies[2].params_dl1._writeAllocate = STORE_ALLOCATE;
 
 
