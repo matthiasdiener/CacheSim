@@ -40,6 +40,8 @@ map<UINT32, UINT32> pidmap; // pid -> tid
 
 VOID LoadMulti(ADDRINT addr, UINT32 size, ADDRINT instAddr,THREADID threadid)
 {
+    if (num_threads<2)
+        return;
     PIN_GetLock(&lock, threadid+1);
 
     CountAccess[threadid][ACCESS_TYPE_LOAD]++;
@@ -51,6 +53,8 @@ VOID LoadMulti(ADDRINT addr, UINT32 size, ADDRINT instAddr,THREADID threadid)
 
 VOID StoreMulti(ADDRINT addr, UINT32 size, ADDRINT instAddr,THREADID threadid)
 {
+    if (num_threads<2)
+        return;
     PIN_GetLock(&lock, threadid+1);
 
     CountAccess[threadid][ACCESS_TYPE_STORE]++;
