@@ -7,7 +7,7 @@
 #include "pin.H"
 
 
-#define MAX_THREADS 64  // maximum threads to keep track of
+#define MAX_THREADS 256  // maximum threads to keep track of
 #include "cache.H"
 #include "cache_parameters.H"
 
