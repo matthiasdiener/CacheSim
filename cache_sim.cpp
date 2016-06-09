@@ -1,6 +1,16 @@
 #include <cstdlib>
 #include <iostream>
 #include <cstring>
+#include <sstream>
+#include <string>
+
+template<class T>
+std::string to_string(const T &value) {
+    std::ostringstream os;
+    os << value;
+    return os.str();
+}
+
 
 #include "pin.H"
 
